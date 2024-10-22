@@ -1,0 +1,113 @@
+<!-- list_routes.html -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Liste des trajets sauvegardés</title>
+
+    <!-- Feuilles de style -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <style>
+        #map {
+            height: 800px;
+            width: 100%;
+        }
+        .route-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .route-list li {
+            margin: 5px 0;
+        }
+        .route-link {
+            cursor: pointer;
+            color: blue;
+            text-decoration: underline;
+        }
+        .route-list {
+    padding: 0;
+    margin: 0;
+}
+
+.route-list li {
+    display: inline-block;
+    margin-right: 15px; /* Espace entre les éléments */
+}
+
+.route-link {
+    text-decoration: none;
+    color: red; /* Tu peux ajuster la couleur ici */
+    
+}
+
+    </style>
+</head>
+<body>
+        <a href="/">page home</a>
+
+    <h1>Liste des trajets sauvegardés</h1>
+
+    <ul class="route-list">
+        {% for route in routes %}
+            <li>
+                <span class="route-link" data-route-id="{{ route.id }}">{{ route.name }}</span>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <div id="map"></div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var map = L.map('map').setView([45.7363, 4.8372], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            var routingControl = L.Routing.control({
+                waypoints: [],
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1'
+                }),
+                language: 'fr',
+                routeWhileDragging: false,
+                draggableWaypoints: false,
+                addWaypoints: false
+            }).addTo(map);
+
+            var routeLinks = document.getElementsByClassName('route-link');
+
+            for (var i = 0; i < routeLinks.length; i++) {
+                routeLinks[i].addEventListener('click', function(e) {
+                    var routeId = this.getAttribute('data-route-id');
+                    // Récupérer les données du trajet depuis le serveur
+                    fetch('/routes/' + routeId + '/')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            var waypoints = data.waypoints.map(function(point) {
+                                return L.latLng(point.lat, point.lng);
+                            });
+
+                            // Afficher le trajet sur la carte
+                            routingControl.setWaypoints(waypoints);
+                        } else {
+                            alert('Erreur : ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur:', error);
+                    });
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>

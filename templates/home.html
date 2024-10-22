@@ -1,7 +1,164 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Google Map</title>
 
-{% block title %}open street map{% endblock %}
+    <!-- Feuilles de style -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <style>
+        #map {
+            height: 800px;
+            width: 100%;
+        }
+        #save-route {
+            display: none; /* Masqué par défaut */
+            margin: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
 
-{% block content %}
-<h1>open street map app</h1>
-{% endblock %}
+    <h1>Maps</h1>
+        <a href="/routes/">Liste des trajets sauvegardés</a>
+
+    <div id="map"></div>
+    <button id="save-route">Sauvegarder le trajet</button> <!-- Bouton pour sauvegarder -->
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var map = L.map('map').setView([45.7363, 4.8372], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        var routingControl = L.Routing.control({
+            waypoints: [],
+            router: L.Routing.osrmv1({
+                serviceUrl: 'https://router.project-osrm.org/route/v1'
+            }),
+            language: 'fr',
+            geocoder: L.Control.Geocoder.nominatim()
+        }).addTo(map);
+
+        var waypoints = [];
+
+        function addWaypoint(latlng) {
+            if (waypoints.length < 2) {
+                waypoints.push(latlng);
+                L.marker(latlng).addTo(map);
+            }
+
+            if (waypoints.length === 2) {
+                routingControl.setWaypoints(waypoints);
+                // Rendre visible le bouton une fois que les points sont définis
+                document.getElementById('save-route').style.display = 'block';
+            }
+        }
+
+        map.on('click', function(e) {
+            addWaypoint(e.latlng);
+        });
+
+        var resetButton = L.control({position: 'topright'});
+        resetButton.onAdd = function(map) {
+            var div = L.DomUtil.create('div', 'reset-button');
+            div.innerHTML = '<button>Réinitialiser</button>';
+            L.DomEvent.disableClickPropagation(div);
+            div.onclick = function() {
+                waypoints = [];
+                routingControl.setWaypoints([]);
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.Marker && !layer._icon.classList.contains('leaflet-routing-icon')) {
+                        map.removeLayer(layer);
+                    }
+                });
+                // Masquer le bouton si on réinitialise
+                document.getElementById('save-route').style.display = 'none';
+            };
+            return div;
+        };
+        resetButton.addTo(map);
+
+        // Ajouter un event listener pour le bouton "Sauvegarder le trajet"
+// Ajouter un event listener pour le bouton "Sauvegarder le trajet"
+document.getElementById('save-route').addEventListener('click', function() {
+    var route = routingControl.getWaypoints();
+    var waypointsData = route.map(function(waypoint) {
+        return {
+            lat: waypoint.latLng.lat,
+            lng: waypoint.latLng.lng
+        };
+    });
+
+    // Demander à l'utilisateur de nommer le trajet
+    var routeName = prompt('Veuillez nommer le trajet :');
+    if (!routeName) {
+        alert('Le nom du trajet est requis pour sauvegarder.');
+        return; // Sortir de la fonction si aucun nom n'est fourni
+    }
+
+    // Envoyer les données du trajet au backend
+    fetch('/save_route/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ 
+            waypoints: waypointsData,
+            name: routeName // Inclure le nom du trajet dans les données envoyées
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert('Trajet "' + routeName + '" sauvegardé avec succès !');
+        // Réinitialiser le trajet après la sauvegarde
+        waypoints = [];
+        routingControl.setWaypoints([]);
+        map.eachLayer(function(layer) {
+            if (layer instanceof L.Marker && !layer._icon.classList.contains('leaflet-routing-icon')) {
+                map.removeLayer(layer);
+            }
+        });
+        document.getElementById('save-route').style.display = 'none';
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+    });
+});
+
+        // Fonction pour obtenir le token CSRF
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+
+</body>
+</html>
